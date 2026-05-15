@@ -1,5 +1,8 @@
-# Railway build/start commands.
-# Runtime variables are set in the Railway dashboard.
+# Railway PaaS deployment configuration.
+# This file defines build/start behavior only.
+# Runtime variables such as DB_JDBC_URL, DB_USERNAME, DB_PASSWORD,
+# JWT_SECRET, CORS_ALLOWED_ORIGINS and H2_CONSOLE_ENABLED should be
+# set in the Railway service Variables tab.
 
 [build]
 builder = "nixpacks"
