@@ -5,10 +5,10 @@
 # set in the Railway service Variables tab.
 
 [build]
-builder = "nixpacks"
-buildCommand = "cd backend && mvn clean package -DskipTests"
+builder = "NIXPACKS"
+buildCommand = "mvn clean package -DskipTests"
 
 [deploy]
-startCommand = "java -jar backend/target/ev-charging-backend-1.0.0.jar --server.port=$PORT"
-restartPolicyType = "on_failure"
-restartPolicyMaxRetries = 3
+startCommand = "java -jar target/ev-charging-backend-1.0.0.jar --server.port=$PORT"
+restartPolicyType = "ON_FAILURE"
+restartPolicyMaxRetries = 10
