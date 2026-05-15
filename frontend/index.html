@@ -1,0 +1,2620 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8"/>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+    <title>VoltSpot — EV Charging Station Booking</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com"/>
+    <link href="https://fonts.googleapis.com/css2?family=Syne:wght@400;600;700;800&family=DM+Sans:wght@300;400;500&display=swap" rel="stylesheet"/>
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css"/>
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root {
+            --bg: #0a0d13;
+            --surface: #121720;
+            --card: #171e2b;
+            --border: #1e2a3a;
+            --accent: #00e5a0;
+            --accent2: #00b3ff;
+            --warn: #ff6b35;
+            --text: #e8f0fe;
+            --muted: #6b8099;
+            --success: #00e5a0;
+            --danger: #ff4757;
+        }
+
+        * { margin:0; padding:0; box-sizing:border-box; }
+
+        body {
+            font-family:'DM Sans',sans-serif;
+            background:var(--bg);
+            color:var(--text);
+            min-height:100vh;
+            overflow-x:hidden;
+        }
+
+        nav {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            padding:0 2rem;
+            height:64px;
+            background:rgba(10,13,19,0.95);
+            border-bottom:1px solid var(--border);
+            position:sticky;
+            top:0;
+            z-index:1000;
+            backdrop-filter:blur(12px);
+        }
+
+        .logo {
+            font-family:'Syne',sans-serif;
+            font-weight:800;
+            font-size:1.4rem;
+            color:var(--accent);
+            letter-spacing:-0.5px;
+        }
+
+        .logo span { color:var(--text); }
+
+        .nav-actions {
+            display:flex;
+            gap:1rem;
+            align-items:center;
+        }
+
+        #userBadge {
+            font-size:0.8rem;
+            color:var(--muted);
+        }
+
+        .btn {
+            padding:0.5rem 1.2rem;
+            border-radius:8px;
+            border:none;
+            cursor:pointer;
+            font-family:'DM Sans',sans-serif;
+            font-weight:500;
+            font-size:0.875rem;
+            transition:all 0.2s;
+        }
+
+        .btn-ghost {
+            background:transparent;
+            color:var(--text);
+            border:1px solid var(--border);
+        }
+
+        .btn-ghost:hover {
+            border-color:var(--accent);
+            color:var(--accent);
+        }
+
+        .btn-primary {
+            background:var(--accent);
+            color:#0a0d13;
+            font-weight:700;
+        }
+
+        .btn-primary:hover {
+            background:#00ffa8;
+            transform:translateY(-1px);
+        }
+
+        .btn-danger {
+            background:var(--danger);
+            color:#fff;
+        }
+
+        .btn-danger:hover {
+            background:#ff6b6b;
+        }
+
+        .btn-sm {
+            padding:0.3rem 0.8rem;
+            font-size:0.8rem;
+        }
+
+        .app {
+            display:grid;
+            grid-template-columns:380px 1fr;
+            height:calc(100vh - 64px);
+        }
+
+        .sidebar {
+            background:var(--surface);
+            border-right:1px solid var(--border);
+            display:flex;
+            flex-direction:column;
+            overflow:hidden;
+        }
+
+        .sidebar-header {
+            padding:1.25rem 1.5rem;
+            border-bottom:1px solid var(--border);
+            flex-shrink:0;
+        }
+
+        .sidebar-header h2 {
+            font-family:'Syne',sans-serif;
+            font-size:1rem;
+            font-weight:700;
+            margin-bottom:0.75rem;
+        }
+
+        .search-box {
+            position:relative;
+        }
+
+        .search-box input {
+            width:100%;
+            padding:0.6rem 1rem 0.6rem 2.5rem;
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:8px;
+            color:var(--text);
+            font-family:'DM Sans',sans-serif;
+            font-size:0.875rem;
+            transition:border-color 0.2s;
+        }
+
+        .search-box input:focus {
+            outline:none;
+            border-color:var(--accent);
+        }
+
+        .search-box::before {
+            content:'⌕';
+            position:absolute;
+            left:0.8rem;
+            top:50%;
+            transform:translateY(-50%);
+            color:var(--muted);
+            font-size:1.1rem;
+            pointer-events:none;
+        }
+
+        .sidebar-tabs {
+            display:flex;
+            border-bottom:1px solid var(--border);
+            flex-shrink:0;
+            background:var(--surface);
+            z-index:5;
+        }
+
+        .tab {
+            flex:1;
+            min-width:0;
+            padding:0.65rem 0.35rem;
+            text-align:center;
+            font-size:0.76rem;
+            font-weight:600;
+            cursor:pointer;
+            color:var(--muted);
+            border-bottom:2px solid transparent;
+            transition:all 0.2s;
+            white-space:nowrap;
+        }
+
+        .tab.active {
+            color:var(--accent);
+            border-bottom-color:var(--accent);
+        }
+
+        .tab.admin-tab {
+            color:#d9a65f;
+        }
+
+        .tab.admin-tab.active {
+            color:var(--warn);
+            border-bottom-color:var(--warn);
+        }
+
+        .sidebar-content {
+            flex:1;
+            overflow-y:auto;
+            padding:0.75rem;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border) transparent;
+        }
+
+        .station-card {
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:12px;
+            padding:1rem;
+            margin-bottom:0.75rem;
+            cursor:pointer;
+            transition:all 0.2s;
+        }
+
+        .station-card:hover {
+            border-color:var(--accent);
+            transform:translateY(-1px);
+        }
+
+        .station-card.selected {
+            border-color:var(--accent);
+            background:#111a24;
+        }
+
+        .station-name {
+            font-family:'Syne',sans-serif;
+            font-weight:700;
+            font-size:0.95rem;
+            margin-bottom:0.25rem;
+        }
+
+        .station-addr {
+            font-size:0.78rem;
+            color:var(--muted);
+            margin-bottom:0.75rem;
+        }
+
+        .connector-badges {
+            display:flex;
+            gap:0.4rem;
+            flex-wrap:wrap;
+        }
+
+        .badge {
+            font-size:0.7rem;
+            font-weight:700;
+            padding:0.2rem 0.6rem;
+            border-radius:20px;
+            letter-spacing:0.5px;
+        }
+
+        .badge-ccs2, .badge-ccs {
+            background:#1a3a5c;
+            color:var(--accent2);
+            border:1px solid #1e5080;
+        }
+
+        .badge-type2 {
+            background:#1a3320;
+            color:var(--accent);
+            border:1px solid #1e5030;
+        }
+
+        .badge-chademo {
+            background:#3a2a10;
+            color:#ffa500;
+            border:1px solid #604020;
+        }
+
+        .detail-panel {
+            padding:1rem 1.5rem;
+            border-bottom:1px solid var(--border);
+            max-height:45vh;
+            overflow-y:auto;
+            flex-shrink:0;
+            scrollbar-width:thin;
+            scrollbar-color:var(--border) transparent;
+        }
+
+        .detail-panel h3 {
+            font-family:'Syne',sans-serif;
+            font-weight:700;
+            font-size:1.1rem;
+            margin-bottom:0.25rem;
+        }
+
+        .detail-addr {
+            font-size:0.82rem;
+            color:var(--muted);
+            margin-bottom:1rem;
+        }
+
+        .connector-list {
+            display:flex;
+            flex-direction:column;
+            gap:0.5rem;
+            margin-bottom:1rem;
+        }
+
+        .connector-item {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            background:var(--bg);
+            border:1px solid var(--border);
+            border-radius:8px;
+            padding:0.6rem 0.85rem;
+        }
+
+        .connector-info {
+            display:flex;
+            flex-direction:column;
+            gap:2px;
+        }
+
+        .connector-type {
+            font-weight:600;
+            font-size:0.85rem;
+        }
+
+        .connector-power {
+            font-size:0.75rem;
+            color:var(--muted);
+        }
+
+        .slot-picker {
+            margin-top:0.75rem;
+        }
+
+        .slot-picker label {
+            font-size:0.78rem;
+            color:var(--muted);
+            font-weight:600;
+            display:block;
+            margin-bottom:0.4rem;
+        }
+
+        .date-input, .time-input, .select-input {
+            background:var(--bg);
+            border:1px solid var(--border);
+            border-radius:8px;
+            color:var(--text);
+            padding:0.5rem 0.75rem;
+            font-family:'DM Sans',sans-serif;
+            font-size:0.875rem;
+            width:100%;
+            margin-bottom:0.5rem;
+        }
+
+        .date-input:focus, .time-input:focus, .select-input:focus {
+            outline:none;
+            border-color:var(--accent);
+        }
+
+        .time-row {
+            display:grid;
+            grid-template-columns:1fr 1fr;
+            gap:0.5rem;
+        }
+
+        .slots-grid {
+            display:grid;
+            grid-template-columns:repeat(3,1fr);
+            gap:0.4rem;
+            margin-bottom:0.75rem;
+        }
+
+        .slot-btn {
+            padding:0.4rem;
+            font-size:0.72rem;
+            border-radius:6px;
+            border:1px solid var(--border);
+            background:var(--bg);
+            color:var(--text);
+            cursor:pointer;
+            text-align:center;
+            transition:all 0.15s;
+        }
+
+        .slot-btn.available {
+            border-color:#1e4030;
+            color:var(--accent);
+            background:#0a1a12;
+        }
+
+        .slot-btn.available:hover {
+            background:#0f2a1c;
+            border-color:var(--accent);
+        }
+
+        .slot-btn.available.selected {
+            background:var(--accent);
+            color:#0a0d13;
+            border-color:var(--accent);
+            font-weight:700;
+        }
+
+        .slot-btn.booked {
+            color:var(--muted);
+            background:#100c0c;
+            border-color:#2a1a1a;
+            cursor:not-allowed;
+            text-decoration:line-through;
+        }
+
+        #map {
+            width:100%;
+            height:100%;
+        }
+
+        .leaflet-container {
+            background:#0a0d13 !important;
+        }
+
+        .booking-card {
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:10px;
+            padding:0.85rem 1rem;
+            margin-bottom:0.6rem;
+        }
+
+        .admin-booking-card {
+            border-left:3px solid var(--warn);
+        }
+
+        .booking-header {
+            display:flex;
+            justify-content:space-between;
+            align-items:center;
+            margin-bottom:0.4rem;
+            gap:0.5rem;
+        }
+
+        .booking-station {
+            font-weight:600;
+            font-size:0.88rem;
+        }
+
+        .booking-driver {
+            font-size:0.72rem;
+            color:var(--warn);
+            font-weight:700;
+            margin-bottom:0.25rem;
+        }
+
+        .status-badge {
+            font-size:0.68rem;
+            font-weight:700;
+            padding:0.15rem 0.5rem;
+            border-radius:20px;
+            white-space:nowrap;
+        }
+
+        .status-confirmed {
+            background:#0a2020;
+            color:var(--accent);
+            border:1px solid #1e4030;
+        }
+
+        .status-cancelled {
+            background:#200a0a;
+            color:var(--danger);
+            border:1px solid #401e1e;
+        }
+
+        .status-completed {
+            background:#1a1a0a;
+            color:#ffd700;
+            border:1px solid #403010;
+        }
+
+        .booking-detail {
+            font-size:0.75rem;
+            color:var(--muted);
+            margin-bottom:0.6rem;
+            line-height:1.45;
+        }
+
+        .booking-actions {
+            display:flex;
+            gap:0.5rem;
+            flex-wrap:wrap;
+        }
+
+
+
+        .admin-nav {
+            display:flex;
+            gap:0.35rem;
+            margin-bottom:0.75rem;
+            flex-wrap:wrap;
+        }
+
+        .admin-nav button {
+            flex:1;
+            min-width:92px;
+            padding:0.45rem 0.35rem;
+            border-radius:8px;
+            border:1px solid var(--border);
+            background:var(--bg);
+            color:var(--muted);
+            font-family:'DM Sans',sans-serif;
+            font-size:0.72rem;
+            font-weight:700;
+            cursor:pointer;
+        }
+
+        .admin-nav button.active {
+            color:#0a0d13;
+            background:var(--warn);
+            border-color:var(--warn);
+        }
+
+        .admin-toolbar {
+            display:flex;
+            align-items:center;
+            justify-content:space-between;
+            gap:0.5rem;
+            margin:0.25rem 0 0.75rem;
+        }
+
+        .admin-title {
+            font-size:0.78rem;
+            color:var(--muted);
+            font-weight:700;
+            text-transform:uppercase;
+            letter-spacing:0.4px;
+        }
+
+        .admin-card {
+            background:var(--card);
+            border:1px solid var(--border);
+            border-left:3px solid var(--warn);
+            border-radius:10px;
+            padding:0.85rem 1rem;
+            margin-bottom:0.6rem;
+        }
+
+        .admin-card-title {
+            font-family:'Syne',sans-serif;
+            font-weight:700;
+            font-size:0.9rem;
+            margin-bottom:0.35rem;
+        }
+
+        .admin-card-detail {
+            color:var(--muted);
+            font-size:0.75rem;
+            line-height:1.5;
+            margin-bottom:0.65rem;
+        }
+
+        .modal-overlay {
+            position:fixed;
+            inset:0;
+            background:rgba(0,0,0,0.8);
+            z-index:2000;
+            display:flex;
+            align-items:center;
+            justify-content:center;
+            backdrop-filter:blur(4px);
+            animation:fadeIn 0.2s;
+        }
+
+        .modal {
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:16px;
+            padding:2rem;
+            width:90%;
+            max-width:420px;
+            animation:slideUp 0.25s;
+        }
+
+        .modal h2 {
+            font-family:'Syne',sans-serif;
+            font-weight:800;
+            font-size:1.3rem;
+            margin-bottom:1.5rem;
+        }
+
+        .form-group {
+            margin-bottom:1rem;
+        }
+
+        .form-group label {
+            font-size:0.78rem;
+            color:var(--muted);
+            font-weight:600;
+            display:block;
+            margin-bottom:0.4rem;
+        }
+
+        .form-input {
+            width:100%;
+            padding:0.65rem 0.9rem;
+            background:var(--bg);
+            border:1px solid var(--border);
+            border-radius:8px;
+            color:var(--text);
+            font-family:'DM Sans',sans-serif;
+            font-size:0.9rem;
+            transition:border-color 0.2s;
+        }
+
+        .form-input:focus {
+            outline:none;
+            border-color:var(--accent);
+        }
+
+        .modal-actions {
+            display:flex;
+            gap:0.75rem;
+            margin-top:1.5rem;
+        }
+
+        .modal-actions .btn {
+            flex:1;
+            padding:0.7rem;
+        }
+
+        .error-msg {
+            background:#200a0a;
+            border:1px solid #401e1e;
+            color:var(--danger);
+            padding:0.6rem 0.85rem;
+            border-radius:8px;
+            font-size:0.82rem;
+            margin-bottom:1rem;
+            white-space:pre-line;
+        }
+
+        .toast {
+            position:fixed;
+            bottom:2rem;
+            right:2rem;
+            background:var(--card);
+            border:1px solid var(--border);
+            border-radius:10px;
+            padding:0.85rem 1.25rem;
+            z-index:3000;
+            font-size:0.875rem;
+            animation:slideUp 0.3s;
+            display:flex;
+            align-items:center;
+            gap:0.75rem;
+            max-width:320px;
+        }
+
+        .toast.success {
+            border-left:3px solid var(--accent);
+        }
+
+        .toast.error {
+            border-left:3px solid var(--danger);
+        }
+
+        .empty {
+            text-align:center;
+            padding:3rem 1rem;
+            color:var(--muted);
+        }
+
+        .empty-icon {
+            font-size:3rem;
+            margin-bottom:1rem;
+            opacity:0.4;
+        }
+
+        .empty p {
+            font-size:0.875rem;
+        }
+
+        .loading {
+            text-align:center;
+            padding:2rem;
+            color:var(--muted);
+            font-size:0.875rem;
+        }
+
+        @keyframes fadeIn {
+            from { opacity:0; }
+            to { opacity:1; }
+        }
+
+        @keyframes slideUp {
+            from { opacity:0; transform:translateY(20px); }
+            to { opacity:1; transform:translateY(0); }
+        }
+
+        .leaflet-popup-content-wrapper {
+            background:var(--card) !important;
+            border:1px solid var(--border) !important;
+            border-radius:10px !important;
+            color:var(--text) !important;
+        }
+
+        .leaflet-popup-tip {
+            background:var(--card) !important;
+        }
+
+        ::-webkit-scrollbar { width:4px; }
+        ::-webkit-scrollbar-track { background:transparent; }
+        ::-webkit-scrollbar-thumb { background:var(--border); border-radius:4px; }
+
+        @media (max-height: 800px) {
+            .sidebar-header {
+                padding:0.85rem 1rem;
+            }
+
+            .sidebar-header h2 {
+                font-size:0.9rem;
+                margin-bottom:0.5rem;
+            }
+
+            .detail-panel {
+                max-height:38vh;
+                padding:0.85rem 1rem;
+            }
+
+            .slots-grid {
+                grid-template-columns:repeat(2,1fr);
+            }
+        }
+
+        @media (max-width: 900px) {
+            .app {
+                grid-template-columns:330px 1fr;
+            }
+
+            .tab {
+                font-size:0.72rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+<nav>
+    <div class="logo">Volt<span>Spot</span></div>
+    <div class="nav-actions">
+        <span id="userBadge"></span>
+        <button class="btn btn-ghost" id="loginBtn" onclick="showLoginModal()">Login</button>
+        <button class="btn btn-primary" id="registerBtn" onclick="showRegisterModal()">Register</button>
+        <button class="btn btn-ghost" id="logoutBtn" style="display:none" onclick="logout()">Logout</button>
+    </div>
+</nav>
+
+<div class="app">
+    <div class="sidebar">
+        <div class="sidebar-header">
+            <h2>Charging Stations</h2>
+            <div class="search-box">
+                <input type="text" id="searchInput" placeholder="Search stations, cities..." oninput="filterStations(this.value)"/>
+            </div>
+        </div>
+
+        <div class="sidebar-tabs">
+            <div class="tab active" onclick="switchTab('stations', this)">⚡ Stations</div>
+            <div class="tab" onclick="switchTab('bookings', this)">📋 My Bookings</div>
+            <div class="tab admin-tab" id="adminTab" style="display:none" onclick="switchTab('admin', this)">🛡 Admin</div>
+        </div>
+
+        <div class="sidebar-content" id="sidebarContent">
+            <div class="loading">Loading stations...</div>
+        </div>
+    </div>
+
+    <div id="map"></div>
+</div>
+
+<div id="loginModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2>Welcome back ⚡</h2>
+        <div id="loginError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Username</label>
+            <input class="form-input" id="loginUser" placeholder="your username"/>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input class="form-input" type="password" id="loginPass" placeholder="••••••••" onkeydown="if(event.key==='Enter')doLogin()"/>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('loginModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="doLogin()">Login</button>
+        </div>
+    </div>
+</div>
+
+<div id="registerModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2>Create Account</h2>
+        <div id="registerError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Username</label>
+            <input class="form-input" id="regUser" placeholder="choose a username"/>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input class="form-input" type="email" id="regEmail" placeholder="your@email.com"/>
+        </div>
+        <div class="form-group">
+            <label>Password</label>
+            <input class="form-input" type="password" id="regPass" placeholder="••••••••"/>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('registerModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="doRegister()">Create Account</button>
+        </div>
+    </div>
+</div>
+
+<div id="bookingModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2>Confirm Booking</h2>
+        <div id="bookingError" class="error-msg" style="display:none"></div>
+        <div id="bookingInfo" style="margin-bottom:1rem;font-size:0.875rem;color:var(--muted);line-height:1.6;"></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('bookingModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="confirmBooking()">Confirm Booking</button>
+        </div>
+    </div>
+</div>
+
+<div id="modifyModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2>Modify Booking</h2>
+        <div id="modifyError" class="error-msg" style="display:none"></div>
+        <div id="modifyContext" style="font-size:0.8rem;color:var(--muted);line-height:1.5;margin-bottom:1rem;"></div>
+
+        <div class="form-group" id="modifyDriverGroup" style="display:none">
+            <label>Driver</label>
+            <select class="form-input" id="modifyDriver"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Station</label>
+            <select class="form-input" id="modifyStation" onchange="loadModifyConnectors()"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Connector</label>
+            <select class="form-input" id="modifyConnector" onchange="loadModifySlots()"></select>
+        </div>
+
+        <div class="form-group">
+            <label>Date</label>
+            <input class="form-input" type="date" id="modifyDate" onchange="loadModifySlots()"/>
+        </div>
+
+        <div class="form-group">
+            <label>Available Slots</label>
+            <div class="slots-grid" id="modifySlotsGrid">
+                <div class="loading">Select station, connector and date.</div>
+            </div>
+            <div id="modifySelectedInfo" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;line-height:1.4;">
+                Select an available slot above.
+            </div>
+        </div>
+
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('modifyModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitModify()">Update Booking</button>
+        </div>
+    </div>
+</div>
+
+
+<div id="adminBookingModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2>Create Booking for Driver</h2>
+        <div id="adminBookingError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Driver</label>
+            <select class="form-input" id="adminBookingDriver"></select>
+        </div>
+        <div class="form-group">
+            <label>Station</label>
+            <select class="form-input" id="adminBookingStation" onchange="loadAdminBookingConnectors()"></select>
+        </div>
+        <div class="form-group">
+            <label>Connector</label>
+            <select class="form-input" id="adminBookingConnector" onchange="loadAdminBookingSlots()"></select>
+        </div>
+        <div class="form-group">
+            <label>Date</label>
+            <input class="form-input" type="date" id="adminBookingDate" onchange="loadAdminBookingSlots()"/>
+        </div>
+        <div class="form-group">
+            <label>Available Slots</label>
+            <div class="slots-grid" id="adminBookingSlotsGrid">
+                <div class="loading">Select station, connector and date.</div>
+            </div>
+            <div id="adminBookingSelectedInfo" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;line-height:1.4;">
+                Select an available slot above.
+            </div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('adminBookingModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitAdminBooking()">Create Booking</button>
+        </div>
+    </div>
+</div>
+
+<div id="stationModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2 id="stationModalTitle">Station</h2>
+        <div id="stationError" class="error-msg" style="display:none"></div>
+        <div class="form-group"><label>Station Name</label><input class="form-input" id="stationName" placeholder="e.g. Oxford Street EV Hub"/></div>
+        <div class="form-group"><label>Address</label><input class="form-input" id="stationAddress" placeholder="Street, area, postcode"/></div>
+        <div class="time-row">
+            <div class="form-group"><label>Latitude</label><input class="form-input" type="number" step="0.000001" id="stationLatitude" placeholder="51.5072"/></div>
+            <div class="form-group"><label>Longitude</label><input class="form-input" type="number" step="0.000001" id="stationLongitude" placeholder="-0.1276"/></div>
+        </div>
+        <div class="time-row">
+            <div class="form-group"><label>City</label><input class="form-input" id="stationCity" placeholder="London"/></div>
+            <div class="form-group"><label>Country</label><input class="form-input" id="stationCountry" placeholder="UK"/></div>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('stationModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitStationForm()">Save Station</button>
+        </div>
+    </div>
+</div>
+
+<div id="connectorModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2 id="connectorModalTitle">Connector</h2>
+        <div id="connectorError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Station</label>
+            <select class="form-input" id="connectorStationId"></select>
+        </div>
+        <div class="form-group"><label>Connector Type</label><input class="form-input" id="connectorType" placeholder="CCS2, Type2, CHAdeMO"/></div>
+        <div class="form-group"><label>Power kW</label><input class="form-input" type="number" step="1" id="connectorPower" placeholder="150"/></div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('connectorModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitConnectorForm()">Save Connector</button>
+        </div>
+    </div>
+</div>
+
+<div id="slotModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2 id="slotModalTitle">Slot</h2>
+        <div id="slotError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Connector</label>
+            <select class="form-input" id="slotConnectorId"></select>
+        </div>
+        <div class="form-group">
+            <label>Date</label>
+            <input class="form-input" type="date" id="slotDateAdmin"/>
+        </div>
+        <div class="time-row">
+            <div class="form-group">
+                <label>Start Time</label>
+                <input class="form-input" type="time" id="slotStartAdmin"/>
+            </div>
+            <div class="form-group">
+                <label>End Time</label>
+                <input class="form-input" type="time" id="slotEndAdmin"/>
+            </div>
+        </div>
+        <div class="form-group">
+            <label>Administrative Availability</label>
+            <select class="form-input" id="slotAvailableAdmin">
+                <option value="true">Available</option>
+                <option value="false">Blocked / Unavailable</option>
+            </select>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('slotModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitSlotForm()">Save Slot</button>
+        </div>
+    </div>
+</div>
+
+<div id="userModal" class="modal-overlay" style="display:none">
+    <div class="modal">
+        <h2 id="userModalTitle">User</h2>
+        <div id="userError" class="error-msg" style="display:none"></div>
+        <div class="form-group">
+            <label>Username</label>
+            <input class="form-input" id="userUsername" placeholder="username"/>
+        </div>
+        <div class="form-group">
+            <label>Email</label>
+            <input class="form-input" type="email" id="userEmail" placeholder="user@example.com"/>
+        </div>
+        <div class="form-group">
+            <label>Role</label>
+            <select class="form-input" id="userRole">
+                <option value="DRIVER">DRIVER</option>
+                <option value="ADMIN">ADMIN</option>
+            </select>
+        </div>
+        <div class="form-group">
+            <label>Password <span id="userPasswordHint" style="color:var(--muted);font-weight:400;"></span></label>
+            <input class="form-input" type="password" id="userPassword" placeholder="minimum 6 characters"/>
+        </div>
+        <div class="modal-actions">
+            <button class="btn btn-ghost" onclick="closeModal('userModal')">Cancel</button>
+            <button class="btn btn-primary" onclick="submitUserForm()">Save User</button>
+        </div>
+    </div>
+</div>
+
+<script>
+    const API_BASE = (() => {
+        const configuredApiBase =
+            window.VOLTSPOT_API_BASE ||
+            localStorage.getItem('voltspot_api_base') ||
+            document.querySelector('meta[name="api-base"]')?.content;
+
+        if (configuredApiBase && configuredApiBase.trim()) {
+            return configuredApiBase.trim().replace(/\/$/, '');
+        }
+
+        const host = window.location.hostname;
+        const isLocalFrontend = host === 'localhost' || host === '127.0.0.1' || host === '';
+
+        if (isLocalFrontend) {
+            return 'http://localhost:8080/api';
+        }
+
+        return `${window.location.origin}/api`;
+    })();
+
+    window.setVoltSpotApiBase = function(apiBase) {
+        localStorage.setItem('voltspot_api_base', apiBase.replace(/\/$/, ''));
+        console.log('VoltSpot API base set to:', localStorage.getItem('voltspot_api_base'));
+        console.log('Refresh the page for the change to take effect.');
+    };
+
+    window.clearVoltSpotApiBase = function() {
+        localStorage.removeItem('voltspot_api_base');
+        console.log('VoltSpot API base override cleared. Refresh the page for the change to take effect.');
+    };
+
+    let state = {
+        token: localStorage.getItem('token'),
+        user: JSON.parse(localStorage.getItem('user') || 'null'),
+        stations: [],
+        filteredStations: [],
+        selectedStation: null,
+        selectedConnector: null,
+        selectedDate: new Date().toISOString().split('T')[0],
+        selectedSlotStart: null,
+        selectedSlotEnd: null,
+        bookingPending: null,
+        modifyingBookingId: null,
+        modifyingBooking: null,
+        modifySelectedSlotStart: null,
+        modifySelectedSlotEnd: null,
+        stationFormMode: 'create',
+        editingStationId: null,
+        connectorFormMode: 'create',
+        editingConnectorId: null,
+        slotFormMode: 'create',
+        editingSlotId: null,
+        adminSlotConnectorId: null,
+        adminSlotDate: new Date().toISOString().split('T')[0],
+        adminBookingSelectedSlotStart: null,
+        adminBookingSelectedSlotEnd: null,
+        userFormMode: 'create',
+        editingUserId: null,
+        currentTab: 'stations',
+        map: null,
+        markers: {}
+    };
+
+    async function api(path, opts = {}) {
+        const headers = { 'Content-Type': 'application/json' };
+        if (state.token) headers['Authorization'] = `Bearer ${state.token}`;
+
+        const res = await fetch(API_BASE + path, { ...opts, headers });
+        const text = await res.text();
+
+        let data = {};
+        if (text) {
+            try {
+                data = JSON.parse(text);
+            } catch {
+                data = { message: text };
+            }
+        }
+
+        if (!res.ok) {
+            let message = data.error || data.message || 'Request failed';
+
+            if (data.fields && typeof data.fields === 'object') {
+                const fieldMessages = Object.values(data.fields).filter(Boolean);
+                if (fieldMessages.length) {
+                    message = fieldMessages.join('\n');
+                }
+            } else {
+                const ignoredKeys = ['timestamp', 'status', 'error', 'message'];
+                const extraMessages = Object.entries(data)
+                    .filter(([key, value]) => !ignoredKeys.includes(key) && typeof value === 'string')
+                    .map(([_, value]) => value);
+
+                if (extraMessages.length) {
+                    message = extraMessages.join('\n');
+                }
+            }
+
+            throw new Error(message);
+        }
+
+        return data;
+    }
+
+    function showLoginModal() {
+        document.getElementById('loginModal').style.display='flex';
+    }
+
+    function showRegisterModal() {
+        document.getElementById('registerModal').style.display='flex';
+    }
+
+    function closeModal(id) {
+        document.getElementById(id).style.display='none';
+        clearModalErrors();
+    }
+
+    function clearModalErrors() {
+        ['loginError','registerError','bookingError','modifyError','adminBookingError','stationError','connectorError','slotError','userError'].forEach(id => {
+            const el = document.getElementById(id);
+            if (el) {
+                el.style.display='none';
+                el.textContent='';
+            }
+        });
+    }
+
+    async function doLogin() {
+        const username = document.getElementById('loginUser').value.trim();
+        const password = document.getElementById('loginPass').value;
+
+        try {
+            const data = await api('/auth/login', {
+                method: 'POST',
+                body: JSON.stringify({ username, password })
+            });
+
+            state.token = data.token;
+            state.user = { username: data.username, role: data.role, userId: data.userId };
+
+            localStorage.setItem('token', data.token);
+            localStorage.setItem('user', JSON.stringify(state.user));
+
+            closeModal('loginModal');
+            updateAuthUI();
+            toast(`Welcome back, ${data.username}!`, 'success');
+
+            if (state.user.role === 'ADMIN') {
+                switchTab('admin', document.getElementById('adminTab'));
+            }
+        } catch(e) {
+            showError('loginError', e.message || 'Invalid credentials');
+        }
+    }
+
+    async function doRegister() {
+        const username = document.getElementById('regUser').value.trim();
+        const email = document.getElementById('regEmail').value.trim();
+        const password = document.getElementById('regPass').value;
+
+        try {
+            await api('/auth/register', {
+                method: 'POST',
+                body: JSON.stringify({ username, email, password })
+            });
+
+            closeModal('registerModal');
+            toast('Account created. Please log in.', 'success');
+            showLoginModal();
+            document.getElementById('loginUser').value = username;
+        } catch(e) {
+            showError('registerError', e.message);
+        }
+    }
+
+    function logout() {
+        state.token = null;
+        state.user = null;
+        localStorage.removeItem('token');
+        localStorage.removeItem('user');
+
+        updateAuthUI();
+        toast('Logged out successfully', 'success');
+
+        const firstTab = document.querySelector('.sidebar-tabs .tab');
+        switchTab('stations', firstTab);
+    }
+
+    function updateAuthUI() {
+        const isLoggedIn = !!state.token;
+        const isAdmin = state.user?.role === 'ADMIN';
+
+        document.getElementById('loginBtn').style.display = isLoggedIn ? 'none' : '';
+        document.getElementById('registerBtn').style.display = isLoggedIn ? 'none' : '';
+        document.getElementById('logoutBtn').style.display = isLoggedIn ? '' : 'none';
+        document.getElementById('adminTab').style.display = isAdmin ? '' : 'none';
+
+        const badge = document.getElementById('userBadge');
+        if (isLoggedIn && state.user) {
+            badge.textContent = `${state.user.username} · ${state.user.role}`;
+            badge.style.color = isAdmin ? 'var(--warn)' : 'var(--accent)';
+        } else {
+            badge.textContent = '';
+        }
+
+        if (!isAdmin && state.currentTab === 'admin') {
+            const firstTab = document.querySelector('.sidebar-tabs .tab');
+            switchTab('stations', firstTab);
+        }
+    }
+
+    function initMap() {
+        state.map = L.map('map', { zoomControl: false }).setView([51.505, -0.09], 10);
+        L.control.zoom({ position: 'bottomright' }).addTo(state.map);
+
+        L.tileLayer('https://{s}.basemaps.cartocdn.com/dark_all/{z}/{x}/{y}{r}.png', {
+            attribution: '&copy; OpenStreetMap &copy; CARTO',
+            subdomains: 'abcd',
+            maxZoom: 19
+        }).addTo(state.map);
+    }
+
+    function addStationMarkers(stations) {
+        Object.values(state.markers).forEach(m => state.map.removeLayer(m));
+        state.markers = {};
+
+        const icon = L.divIcon({
+            html: `<div style="background:var(--accent);width:28px;height:28px;border-radius:50%;display:flex;align-items:center;justify-content:center;font-size:14px;border:2px solid #0a0d13;box-shadow:0 0 10px rgba(0,229,160,0.4)">⚡</div>`,
+            className: '',
+            iconSize: [28, 28],
+            iconAnchor: [14, 14]
+        });
+
+        stations.forEach(s => {
+            if (!s.latitude || !s.longitude) return;
+
+            const marker = L.marker([s.latitude, s.longitude], { icon })
+                .addTo(state.map)
+                .bindPopup(`<strong>${s.name}</strong><br/><small>${s.address}</small>
+        <br/><br/><button onclick="selectStation(${s.id})" style="background:var(--accent);color:#0a0d13;border:none;padding:4px 12px;border-radius:6px;cursor:pointer;font-weight:700;width:100%">Select Station</button>`);
+
+            marker.on('click', () => selectStation(s.id));
+            state.markers[s.id] = marker;
+        });
+
+        if (stations.length) {
+            const group = L.featureGroup(Object.values(state.markers));
+            state.map.fitBounds(group.getBounds().pad(0.1));
+        }
+    }
+
+    async function loadStations() {
+        try {
+            state.stations = await api('/stations');
+            state.filteredStations = [...state.stations];
+            renderStations(state.filteredStations);
+            addStationMarkers(state.filteredStations);
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML =
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>Could not load stations.<br>Is the backend running?</p></div>`;
+        }
+    }
+
+    function filterStations(query) {
+        const q = query.toLowerCase();
+
+        state.filteredStations = q
+            ? state.stations.filter(s =>
+                s.name.toLowerCase().includes(q) ||
+                s.city.toLowerCase().includes(q) ||
+                s.address.toLowerCase().includes(q))
+            : [...state.stations];
+
+        renderStations(state.filteredStations);
+        addStationMarkers(state.filteredStations);
+    }
+
+    function renderStations(stations) {
+        if (state.currentTab !== 'stations') return;
+
+        const el = document.getElementById('sidebarContent');
+
+        if (!stations.length) {
+            el.innerHTML = `<div class="empty"><div class="empty-icon">🔍</div><p>No stations found</p></div>`;
+            return;
+        }
+
+        el.innerHTML = stations.map(s => `
+    <div class="station-card ${state.selectedStation?.id === s.id ? 'selected' : ''}" onclick="selectStation(${s.id})">
+      <div class="station-name">${s.name}</div>
+      <div class="station-addr">📍 ${s.address}</div>
+      <div class="connector-badges">
+        ${(s.connectors || []).map(c => `<span class="badge badge-${connectorClass(c.connectorType)}">${c.connectorType} ${c.powerKw}kW</span>`).join('')}
+      </div>
+    </div>
+  `).join('');
+    }
+
+    async function selectStation(id) {
+        const station = state.stations.find(s => s.id === id);
+        if (!station) return;
+
+        state.selectedStation = station;
+
+        if (!station.connectors || !station.connectors.length) {
+            try {
+                station.connectors = await api(`/connectors/station/${id}`);
+            } catch(e) {
+                toast('Could not load connectors', 'error');
+            }
+        }
+
+        renderStations(state.filteredStations);
+        renderStationDetail(station);
+        state.map.setView([station.latitude, station.longitude], 14, { animate: true });
+        if (state.markers[id]) state.markers[id].openPopup();
+    }
+
+    function renderStationDetail(station) {
+        const connectors = station.connectors || [];
+        const detail = document.createElement('div');
+        detail.className = 'detail-panel';
+        detail.id = 'detailPanel';
+
+        detail.innerHTML = `
+    <h3>${station.name}</h3>
+    <div class="detail-addr">📍 ${station.address} · ${station.city}</div>
+
+    <div style="font-size:0.78rem;color:var(--muted);font-weight:600;margin-bottom:0.5rem;">CONNECTORS</div>
+
+    <div class="connector-list">
+      ${connectors.map(c => `
+        <div class="connector-item" onclick="selectConnector(${c.id},this)" style="cursor:pointer;${state.selectedConnector?.id===c.id?'border-color:var(--accent);':''}" id="conn-${c.id}">
+          <div class="connector-info">
+            <div class="connector-type">${c.connectorType}</div>
+            <div class="connector-power">${c.powerKw} kW</div>
+          </div>
+          <span class="badge badge-${connectorClass(c.connectorType)}">${c.connectorType}</span>
+        </div>
+      `).join('')}
+    </div>
+
+    <div class="slot-picker" id="slotPicker" style="display:none">
+      <label>Select Date</label>
+      <input type="date" class="date-input" id="slotDate" min="${new Date().toISOString().split('T')[0]}" value="${state.selectedDate}" onchange="loadSlots(this.value)"/>
+
+      <label>Available Time Slots</label>
+      <div class="slots-grid" id="slotsGrid"><div class="loading">Select a date to load slots</div></div>
+
+      <div id="selectedSlotInfo" style="font-size:0.78rem;color:var(--muted);margin-top:0.5rem;margin-bottom:0.75rem;line-height:1.4;">
+        Select an available slot above to continue.
+      </div>
+
+      <button class="btn btn-primary" style="width:100%;margin-top:0.5rem" onclick="openBookingModal()">Book Selected Slot</button>
+    </div>
+  `;
+
+        const sidebar = document.querySelector('.sidebar');
+        const existing = document.getElementById('detailPanel');
+        if (existing) existing.remove();
+
+        sidebar.insertBefore(detail, document.getElementById('sidebarContent'));
+    }
+
+    function selectConnector(id, el) {
+        state.selectedConnector = state.stations
+            .flatMap(s => s.connectors || [])
+            .find(c => c.id === id);
+        state.selectedSlotStart = null;
+        state.selectedSlotEnd = null;
+
+        document.querySelectorAll('.connector-item').forEach(e => e.style.borderColor='');
+        if (el) el.style.borderColor = 'var(--accent)';
+
+        document.getElementById('slotPicker').style.display = 'block';
+        const selectedSlotInfo = document.getElementById('selectedSlotInfo');
+        if (selectedSlotInfo) selectedSlotInfo.textContent = 'Select an available slot above to continue.';
+        loadSlots(document.getElementById('slotDate')?.value || state.selectedDate);
+    }
+
+    async function loadSlots(date) {
+        if (!state.selectedConnector) return;
+
+        state.selectedDate = date;
+        state.selectedSlotStart = null;
+        state.selectedSlotEnd = null;
+        const selectedSlotInfo = document.getElementById('selectedSlotInfo');
+        if (selectedSlotInfo) selectedSlotInfo.textContent = 'Select an available slot above to continue.';
+        const grid = document.getElementById('slotsGrid');
+        if (!grid) return;
+
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+
+        try {
+            const slots = await api(`/slots/connector/${state.selectedConnector.id}/all?date=${date}`);
+
+            if (!slots.length) {
+                grid.innerHTML = '<div style="grid-column:1/-1;font-size:0.8rem;color:var(--muted);">No slots for this date</div>';
+                return;
+            }
+
+            grid.innerHTML = slots.map(s => {
+                const start = s.startTime.substring(0,5);
+                const end = s.endTime.substring(0,5);
+                const cls = s.available ? 'available' : 'booked';
+
+                return `<div class="slot-btn ${cls}" onclick="${s.available ? `pickSlot('${start}','${end}',this)` : ''}">
+        ${start}<br/>${end}
+      </div>`;
+            }).join('');
+        } catch(e) {
+            grid.innerHTML = '<div style="grid-column:1/-1;font-size:0.8rem;color:var(--danger);">Error loading slots</div>';
+        }
+    }
+
+    function pickSlot(start, end, el) {
+        document.querySelectorAll('.slot-btn.available').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+        state.selectedSlotStart = start;
+        state.selectedSlotEnd = end;
+
+        const selectedSlotInfo = document.getElementById('selectedSlotInfo');
+        if (selectedSlotInfo) {
+            selectedSlotInfo.innerHTML = `Selected slot: <strong style="color:var(--accent)">${start} – ${end}</strong>`;
+        }
+    }
+
+    function openBookingModal() {
+        if (!state.token) {
+            toast('Please log in to book a slot', 'error');
+            return;
+        }
+
+        if (!state.selectedConnector || !state.selectedStation) {
+            toast('Select a station and connector', 'error');
+            return;
+        }
+
+        const date = document.getElementById('slotDate')?.value;
+        const start = state.selectedSlotStart;
+        const end = state.selectedSlotEnd;
+
+        if (!date || !start || !end) {
+            toast('Please select an available charging slot', 'error');
+            return;
+        }
+
+        state.bookingPending = {
+            connectorId: state.selectedConnector.id,
+            stationId: state.selectedStation.id,
+            date,
+            startTime: start,
+            endTime: end
+        };
+
+        document.getElementById('bookingInfo').innerHTML = `
+    <strong>${state.selectedStation.name}</strong><br/>
+    🔌 ${state.selectedConnector.connectorType} (${state.selectedConnector.powerKw} kW)<br/>
+    📅 ${date}<br/>
+    ⏱ ${start} – ${end}
+  `;
+
+        document.getElementById('bookingModal').style.display = 'flex';
+    }
+
+    async function confirmBooking() {
+        if (!state.bookingPending) return;
+
+        try {
+            await api('/bookings', {
+                method: 'POST',
+                body: JSON.stringify(state.bookingPending)
+            });
+
+            closeModal('bookingModal');
+            state.bookingPending = null;
+            toast('Booking confirmed! ⚡', 'success');
+
+            loadSlots(state.selectedDate);
+
+            if (state.currentTab === 'bookings') loadMyBookings();
+            if (state.currentTab === 'admin') loadAdminBookings();
+        } catch(e) {
+            showError('bookingError', e.message);
+        }
+    }
+
+    async function loadMyBookings() {
+        if (!state.token) {
+            document.getElementById('sidebarContent').innerHTML =
+                `<div class="empty"><div class="empty-icon">🔒</div><p>Please log in to view your bookings</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = '<div class="loading">Loading bookings...</div>';
+
+        try {
+            const bookings = await api('/bookings/my');
+
+            if (!bookings.length) {
+                document.getElementById('sidebarContent').innerHTML =
+                    `<div class="empty"><div class="empty-icon">📋</div><p>No bookings yet.<br>Find a station and book a slot.</p></div>`;
+                return;
+            }
+
+            document.getElementById('sidebarContent').innerHTML = bookings.map(b => renderBookingCard(b, false)).join('');
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML =
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+    function adminNav(active) {
+        return `
+      <div class="admin-nav">
+        <button class="${active === 'bookings' ? 'active' : ''}" onclick="loadAdminBookings()">Bookings</button>
+        <button class="${active === 'users' ? 'active' : ''}" onclick="loadAdminUsers()">Users</button>
+        <button class="${active === 'stations' ? 'active' : ''}" onclick="loadAdminStations()">Stations</button>
+        <button class="${active === 'connectors' ? 'active' : ''}" onclick="loadAdminConnectors()">Connectors</button>
+        <button class="${active === 'slots' ? 'active' : ''}" onclick="loadAdminSlots()">Slots</button>
+      </div>
+    `;
+    }
+
+    async function loadAdminBookings() {
+        if (!state.token || state.user?.role !== 'ADMIN') {
+            document.getElementById('sidebarContent').innerHTML =
+                `<div class="empty"><div class="empty-icon">⛔</div><p>Admin access required.</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = adminNav('bookings') + '<div class="loading">Loading all bookings...</div>';
+
+        try {
+            const bookings = await api('/bookings');
+            const toolbar = `
+        <div class="admin-toolbar">
+          <div class="admin-title">Booking Management · ${bookings.length} Total</div>
+          <button class="btn btn-primary btn-sm" onclick="showAdminBookingModal()">+ Booking</button>
+        </div>
+      `;
+
+            if (!bookings.length) {
+                document.getElementById('sidebarContent').innerHTML = adminNav('bookings') + toolbar +
+                    `<div class="empty"><div class="empty-icon">🛡</div><p>No bookings in the system yet.<br>Create one for a selected driver with + Booking.</p></div>`;
+                return;
+            }
+
+            const confirmed = bookings.filter(b => b.status === 'CONFIRMED');
+            const others = bookings.filter(b => b.status !== 'CONFIRMED');
+            const ordered = [...confirmed, ...others];
+
+            document.getElementById('sidebarContent').innerHTML = adminNav('bookings') + toolbar +
+                ordered.map(b => renderBookingCard(b, true)).join('');
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML = adminNav('bookings') +
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+
+    async function loadAdminUsers() {
+        if (!state.token || state.user?.role !== 'ADMIN') {
+            document.getElementById('sidebarContent').innerHTML = `<div class="empty"><div class="empty-icon">⛔</div><p>Admin access required.</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = adminNav('users') + '<div class="loading">Loading users...</div>';
+
+        try {
+            const users = await api('/users');
+            document.getElementById('sidebarContent').innerHTML = adminNav('users') + `
+        <div class="admin-toolbar">
+          <div class="admin-title">User Management · ${users.length} Total</div>
+          <button class="btn btn-primary btn-sm" onclick="showUserModal()">+ User</button>
+        </div>
+        ${users.map(u => renderAdminUserCard(u)).join('')}
+      `;
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML = adminNav('users') +
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+    function renderAdminUserCard(u) {
+        const isCurrentUser = state.user?.username === u.username;
+        return `
+      <div class="admin-card">
+        <div class="admin-card-title">${escapeHtml(u.username)} ${isCurrentUser ? '· You' : ''}</div>
+        <div class="admin-card-detail">
+          Email: ${escapeHtml(u.email || '')}<br/>
+          Role: ${escapeHtml(u.role)}<br/>
+          User ID: ${u.id}
+        </div>
+        <div class="booking-actions">
+          <button class="btn btn-ghost btn-sm" onclick="showUserModal(${u.id}, '${escapeAttr(u.username)}', '${escapeAttr(u.email || '')}', '${escapeAttr(u.role)}')">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteUser(${u.id}, '${escapeAttr(u.username)}')">Delete</button>
+        </div>
+      </div>
+    `;
+    }
+
+    function showUserModal(id = null, username = '', email = '', role = 'DRIVER') {
+        state.userFormMode = id ? 'edit' : 'create';
+        state.editingUserId = id;
+        clearModalErrors();
+
+        document.getElementById('userModalTitle').textContent = id ? 'Edit User' : 'Create User';
+        document.getElementById('userUsername').value = username;
+        document.getElementById('userEmail').value = email;
+        document.getElementById('userRole').value = role || 'DRIVER';
+        document.getElementById('userPassword').value = '';
+        document.getElementById('userPasswordHint').textContent = id ? '(leave blank to keep current password)' : '(required)';
+        document.getElementById('userModal').style.display = 'flex';
+    }
+
+    async function submitUserForm() {
+        const payload = {
+            username: document.getElementById('userUsername').value.trim(),
+            email: document.getElementById('userEmail').value.trim(),
+            role: document.getElementById('userRole').value,
+            password: document.getElementById('userPassword').value
+        };
+
+        if (!payload.username || !payload.email || !payload.role) {
+            showError('userError', 'Username, email and role are required.');
+            return;
+        }
+
+        if (state.userFormMode === 'create' && !payload.password) {
+            showError('userError', 'Password is required for new users.');
+            return;
+        }
+
+        try {
+            if (state.userFormMode === 'edit') {
+                await api(`/users/${state.editingUserId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                toast('User updated.', 'success');
+            } else {
+                await api('/users', { method: 'POST', body: JSON.stringify(payload) });
+                toast('User created.', 'success');
+            }
+
+            closeModal('userModal');
+            await loadAdminUsers();
+        } catch(e) {
+            showError('userError', e.message);
+        }
+    }
+
+    async function deleteUser(id, username = '') {
+        const isCurrentUser = state.user?.username === username;
+
+        if (isCurrentUser) {
+            toast('You cannot delete your own admin account.', 'error');
+            return;
+        }
+
+        if (!confirm('Delete this user? Users with confirmed bookings cannot be deleted. Cancelled booking history for this user will be removed.')) return;
+
+        try {
+            await api(`/users/${id}`, { method: 'DELETE' });
+            toast('User deleted.', 'success');
+            await loadAdminUsers();
+        } catch(e) {
+            toast(e.message || 'Could not delete user.', 'error');
+        }
+    }
+
+    async function loadAdminStations() {
+        if (!state.token || state.user?.role !== 'ADMIN') {
+            document.getElementById('sidebarContent').innerHTML = `<div class="empty"><div class="empty-icon">⛔</div><p>Admin access required.</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = adminNav('stations') + '<div class="loading">Loading stations...</div>';
+
+        try {
+            await refreshStationsData();
+            document.getElementById('sidebarContent').innerHTML = adminNav('stations') + `
+        <div class="admin-toolbar">
+          <div class="admin-title">Station Management · ${state.stations.length} Total</div>
+          <button class="btn btn-primary btn-sm" onclick="showStationModal()">+ Station</button>
+        </div>
+        ${state.stations.map(s => renderAdminStationCard(s)).join('')}
+      `;
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML = adminNav('stations') +
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+    function renderAdminStationCard(s) {
+        return `
+      <div class="admin-card">
+        <div class="admin-card-title">${escapeHtml(s.name)}</div>
+        <div class="admin-card-detail">
+          📍 ${escapeHtml(s.address)}<br/>
+          ${escapeHtml(s.city || '')}, ${escapeHtml(s.country || '')}<br/>
+          Lat/Lng: ${s.latitude}, ${s.longitude}<br/>
+          ID: ${s.id}
+        </div>
+        <div class="booking-actions">
+          <button class="btn btn-ghost btn-sm" onclick="showStationModal(${s.id})">Edit</button>
+          <button class="btn btn-primary btn-sm" onclick="showConnectorModal(null, ${s.id})">+ Connector</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteStation(${s.id})">Delete</button>
+        </div>
+      </div>
+    `;
+    }
+
+    async function loadAdminConnectors() {
+        if (!state.token || state.user?.role !== 'ADMIN') {
+            document.getElementById('sidebarContent').innerHTML = `<div class="empty"><div class="empty-icon">⛔</div><p>Admin access required.</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = adminNav('connectors') + '<div class="loading">Loading connectors...</div>';
+
+        try {
+            await refreshStationsData();
+            const connectors = [];
+            for (const station of state.stations) {
+                const stationConnectors = station.connectors || await api(`/connectors/station/${station.id}`);
+                station.connectors = stationConnectors;
+                stationConnectors.forEach(c => connectors.push({ ...c, stationId: station.id, stationName: station.name }));
+            }
+
+            document.getElementById('sidebarContent').innerHTML = adminNav('connectors') + `
+        <div class="admin-toolbar">
+          <div class="admin-title">Connector Management · ${connectors.length} Total</div>
+          <button class="btn btn-primary btn-sm" onclick="showConnectorModal()">+ Connector</button>
+        </div>
+        ${connectors.map(c => renderAdminConnectorCard(c)).join('')}
+      `;
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML = adminNav('connectors') +
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+    function renderAdminConnectorCard(c) {
+        return `
+      <div class="admin-card">
+        <div class="admin-card-title">${escapeHtml(c.connectorType)} · ${c.powerKw} kW</div>
+        <div class="admin-card-detail">
+          Station: ${escapeHtml(c.stationName || '')}<br/>
+          Station ID: ${c.stationId}<br/>
+          Connector ID: ${c.id}
+        </div>
+        <div class="booking-actions">
+          <button class="btn btn-ghost btn-sm" onclick="showConnectorModal(${c.id}, ${c.stationId}, '${escapeAttr(c.connectorType)}', ${Number(c.powerKw)})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteConnector(${c.id})">Delete</button>
+        </div>
+      </div>
+    `;
+    }
+
+    async function refreshStationsData() {
+        state.stations = await api('/stations');
+        for (const station of state.stations) {
+            try {
+                station.connectors = await api(`/connectors/station/${station.id}`);
+            } catch {
+                station.connectors = [];
+            }
+        }
+        state.filteredStations = [...state.stations];
+        addStationMarkers(state.filteredStations);
+    }
+
+    function showStationModal(id = null) {
+        state.stationFormMode = id ? 'edit' : 'create';
+        state.editingStationId = id;
+        clearModalErrors();
+
+        const station = id ? state.stations.find(s => s.id === id) : null;
+        document.getElementById('stationModalTitle').textContent = id ? 'Edit Station' : 'Create Station';
+        document.getElementById('stationName').value = station?.name || '';
+        document.getElementById('stationAddress').value = station?.address || '';
+        document.getElementById('stationLatitude').value = station?.latitude ?? '';
+        document.getElementById('stationLongitude').value = station?.longitude ?? '';
+        document.getElementById('stationCity').value = station?.city || 'London';
+        document.getElementById('stationCountry').value = station?.country || 'UK';
+        document.getElementById('stationModal').style.display = 'flex';
+    }
+
+    async function submitStationForm() {
+        const payload = {
+            name: document.getElementById('stationName').value.trim(),
+            address: document.getElementById('stationAddress').value.trim(),
+            latitude: Number(document.getElementById('stationLatitude').value),
+            longitude: Number(document.getElementById('stationLongitude').value),
+            city: document.getElementById('stationCity').value.trim(),
+            country: document.getElementById('stationCountry').value.trim()
+        };
+
+        if (!payload.name || !payload.address || Number.isNaN(payload.latitude) || Number.isNaN(payload.longitude) || !payload.city || !payload.country) {
+            showError('stationError', 'All station fields are required. Latitude and longitude must be numbers.');
+            return;
+        }
+
+        try {
+            if (state.stationFormMode === 'edit') {
+                await api(`/stations/${state.editingStationId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                toast('Station updated.', 'success');
+            } else {
+                await api('/stations', { method: 'POST', body: JSON.stringify(payload) });
+                toast('Station created.', 'success');
+            }
+
+            closeModal('stationModal');
+            await loadAdminStations();
+        } catch(e) {
+            showError('stationError', e.message);
+        }
+    }
+
+    async function deleteStation(id) {
+        if (!confirm('Delete this station? Use this only on demo stations without active bookings.')) return;
+
+        try {
+            await api(`/stations/${id}`, { method: 'DELETE' });
+            toast('Station deleted.', 'success');
+            await loadAdminStations();
+        } catch(e) {
+            toast(e.message || 'Could not delete station. It may have linked bookings/connectors.', 'error');
+        }
+    }
+
+    function populateStationSelect(selectedStationId = null) {
+        const select = document.getElementById('connectorStationId');
+        select.innerHTML = state.stations.map(s => `<option value="${s.id}" ${Number(selectedStationId) === Number(s.id) ? 'selected' : ''}>${escapeHtml(s.name)} · ID ${s.id}</option>`).join('');
+        select.disabled = state.connectorFormMode === 'edit';
+    }
+
+    function showConnectorModal(id = null, stationId = null, connectorType = '', powerKw = '') {
+        state.connectorFormMode = id ? 'edit' : 'create';
+        state.editingConnectorId = id;
+        clearModalErrors();
+
+        document.getElementById('connectorModalTitle').textContent = id ? 'Edit Connector' : 'Create Connector';
+        populateStationSelect(stationId || state.selectedStation?.id || state.stations[0]?.id);
+        document.getElementById('connectorType').value = connectorType || 'CCS2';
+        document.getElementById('connectorPower').value = powerKw || 150;
+        document.getElementById('connectorModal').style.display = 'flex';
+    }
+
+    async function submitConnectorForm() {
+        const stationId = Number(document.getElementById('connectorStationId').value);
+        const payload = {
+            connectorType: document.getElementById('connectorType').value.trim(),
+            powerKw: Number(document.getElementById('connectorPower').value)
+        };
+
+        if (!stationId || !payload.connectorType || Number.isNaN(payload.powerKw)) {
+            showError('connectorError', 'Station, connector type and numeric power are required.');
+            return;
+        }
+
+        try {
+            if (state.connectorFormMode === 'edit') {
+                await api(`/connectors/${state.editingConnectorId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                toast('Connector updated.', 'success');
+            } else {
+                await api(`/connectors/station/${stationId}`, { method: 'POST', body: JSON.stringify(payload) });
+                toast('Connector created.', 'success');
+            }
+
+            closeModal('connectorModal');
+            await loadAdminConnectors();
+        } catch(e) {
+            showError('connectorError', e.message);
+        }
+    }
+
+    async function deleteConnector(id) {
+        if (!confirm('Delete this connector? Use this only on demo connectors without active bookings.')) return;
+
+        try {
+            await api(`/connectors/${id}`, { method: 'DELETE' });
+            toast('Connector deleted.', 'success');
+            await loadAdminConnectors();
+        } catch(e) {
+            toast(e.message || 'Could not delete connector. It may have linked bookings/slots.', 'error');
+        }
+    }
+
+    async function loadAdminSlots() {
+        if (!state.token || state.user?.role !== 'ADMIN') {
+            document.getElementById('sidebarContent').innerHTML = `<div class="empty"><div class="empty-icon">⛔</div><p>Admin access required.</p></div>`;
+            return;
+        }
+
+        removeDetailPanel();
+        document.getElementById('sidebarContent').innerHTML = adminNav('slots') + '<div class="loading">Loading slots...</div>';
+
+        try {
+            await refreshStationsData();
+            const connectors = getAllConnectorsForAdmin();
+
+            if (!connectors.length) {
+                document.getElementById('sidebarContent').innerHTML = adminNav('slots') +
+                    `<div class="empty"><div class="empty-icon">🔌</div><p>No connectors exist yet. Create a connector first.</p></div>`;
+                return;
+            }
+
+            if (!state.adminSlotConnectorId) {
+                state.adminSlotConnectorId = connectors[0].id;
+            }
+
+            const connectorStillExists = connectors.some(c => Number(c.id) === Number(state.adminSlotConnectorId));
+            if (!connectorStillExists) {
+                state.adminSlotConnectorId = connectors[0].id;
+            }
+
+            const date = state.adminSlotDate || new Date().toISOString().split('T')[0];
+            const slots = await api(`/slots?connectorId=${state.adminSlotConnectorId}&date=${date}`);
+            const selectedConnector = connectors.find(c => Number(c.id) === Number(state.adminSlotConnectorId));
+
+            document.getElementById('sidebarContent').innerHTML = adminNav('slots') + `
+        <div class="admin-toolbar">
+          <div class="admin-title">Slot Management</div>
+          <button class="btn btn-primary btn-sm" onclick="showSlotModal()">+ Slot</button>
+        </div>
+
+        <div class="admin-card" style="border-left:3px solid var(--accent2);">
+          <div class="form-group">
+            <label>Connector</label>
+            <select class="form-input" id="adminSlotConnectorFilter" onchange="changeAdminSlotConnector(this.value)">
+              ${connectors.map(c => `<option value="${c.id}" ${Number(c.id) === Number(state.adminSlotConnectorId) ? 'selected' : ''}>${escapeHtml(c.stationName)} · ${escapeHtml(c.connectorType)} ${c.powerKw}kW · ID ${c.id}</option>`).join('')}
+            </select>
+          </div>
+          <div class="form-group">
+            <label>Date</label>
+            <div style="display:grid;grid-template-columns:1fr auto;gap:0.5rem;align-items:center;">
+              <input class="form-input" type="date" id="adminSlotDateFilter" value="${escapeAttr(date)}"/>
+              <button class="btn btn-ghost btn-sm" onclick="applyAdminSlotFilters()">Load</button>
+            </div>
+          </div>
+          <div class="admin-card-detail">
+            Selected: ${escapeHtml(selectedConnector?.stationName || '')} · ${escapeHtml(selectedConnector?.connectorType || '')} ${selectedConnector?.powerKw || ''}kW<br/>
+            Date changes now load only after pressing <strong>Load</strong>, avoiding accidental refresh while typing.
+          </div>
+        </div>
+
+        <div class="admin-title" style="margin:0.75rem 0;">${slots.length} slots on ${escapeHtml(date)}</div>
+        ${slots.length ? slots.map(s => renderAdminSlotCard(s)).join('') : `<div class="empty"><div class="empty-icon">🕒</div><p>No slots for this connector/date.<br>Create one with + Slot.</p></div>`}
+      `;
+        } catch(e) {
+            document.getElementById('sidebarContent').innerHTML = adminNav('slots') +
+                `<div class="empty"><div class="empty-icon">⚠️</div><p>${e.message}</p></div>`;
+        }
+    }
+
+    function getAllConnectorsForAdmin() {
+        const connectors = [];
+        for (const station of state.stations) {
+            (station.connectors || []).forEach(c => connectors.push({
+                ...c,
+                stationId: station.id,
+                stationName: station.name
+            }));
+        }
+        return connectors;
+    }
+
+    function renderAdminSlotCard(slot) {
+        const start = String(slot.startTime || '').substring(0,5);
+        const end = String(slot.endTime || '').substring(0,5);
+        const statusText = slot.booked ? 'BOOKED' : (slot.available ? 'AVAILABLE' : 'BLOCKED');
+        const statusClass = slot.booked ? 'status-completed' : (slot.available ? 'status-confirmed' : 'status-cancelled');
+
+        return `
+      <div class="admin-card">
+        <div class="booking-header">
+          <div class="admin-card-title">${start} – ${end}</div>
+          <span class="status-badge ${statusClass}">${statusText}</span>
+        </div>
+        <div class="admin-card-detail">
+          Station: ${escapeHtml(slot.stationName || '')}<br/>
+          Connector: ${escapeHtml(slot.connectorType || '')} ${slot.powerKw || ''}kW · ID ${slot.connectorId}<br/>
+          Date: ${slot.date}<br/>
+          Slot ID: ${slot.id}<br/>
+          Admin enabled: ${slot.administrativelyAvailable ? 'Yes' : 'No'}
+        </div>
+        <div class="booking-actions">
+          <button class="btn btn-ghost btn-sm" onclick="showSlotModal(${slot.id}, ${slot.connectorId}, '${escapeAttr(slot.date)}', '${escapeAttr(start)}', '${escapeAttr(end)}', ${slot.administrativelyAvailable ? 'true' : 'false'})">Edit</button>
+          <button class="btn btn-danger btn-sm" onclick="deleteSlot(${slot.id})">Delete</button>
+        </div>
+      </div>
+    `;
+    }
+
+    function changeAdminSlotConnector(connectorId) {
+        state.adminSlotConnectorId = Number(connectorId);
+        loadAdminSlots();
+    }
+
+    function applyAdminSlotFilters() {
+        const dateInput = document.getElementById('adminSlotDateFilter');
+        if (dateInput?.value) {
+            state.adminSlotDate = dateInput.value;
+        }
+        loadAdminSlots();
+    }
+
+    function populateSlotConnectorSelect(selectedConnectorId = null) {
+        const select = document.getElementById('slotConnectorId');
+        const connectors = getAllConnectorsForAdmin();
+
+        select.innerHTML = connectors.map(c =>
+            `<option value="${c.id}" ${Number(selectedConnectorId) === Number(c.id) ? 'selected' : ''}>${escapeHtml(c.stationName)} · ${escapeHtml(c.connectorType)} ${c.powerKw}kW · ID ${c.id}</option>`
+        ).join('');
+    }
+
+    function showSlotModal(id = null, connectorId = null, date = '', startTime = '08:00', endTime = '10:00', available = true) {
+        state.slotFormMode = id ? 'edit' : 'create';
+        state.editingSlotId = id;
+        clearModalErrors();
+
+        const selectedConnectorId = connectorId || state.adminSlotConnectorId || state.selectedConnector?.id;
+        const selectedDate = date || state.adminSlotDate || new Date().toISOString().split('T')[0];
+
+        document.getElementById('slotModalTitle').textContent = id ? 'Edit Slot' : 'Create Slot';
+        populateSlotConnectorSelect(selectedConnectorId);
+        document.getElementById('slotDateAdmin').value = selectedDate;
+        document.getElementById('slotStartAdmin').value = startTime;
+        document.getElementById('slotEndAdmin').value = endTime;
+        document.getElementById('slotAvailableAdmin').value = String(available);
+        document.getElementById('slotModal').style.display = 'flex';
+    }
+
+    async function submitSlotForm() {
+        const connectorId = Number(document.getElementById('slotConnectorId').value);
+        const payload = {
+            connectorId,
+            date: document.getElementById('slotDateAdmin').value,
+            startTime: document.getElementById('slotStartAdmin').value,
+            endTime: document.getElementById('slotEndAdmin').value,
+            available: document.getElementById('slotAvailableAdmin').value === 'true'
+        };
+
+        if (!payload.connectorId || !payload.date || !payload.startTime || !payload.endTime) {
+            showError('slotError', 'Connector, date, start time and end time are required.');
+            return;
+        }
+
+        if (payload.startTime >= payload.endTime) {
+            showError('slotError', 'Start time must be before end time.');
+            return;
+        }
+
+        try {
+            if (state.slotFormMode === 'edit') {
+                await api(`/slots/${state.editingSlotId}`, { method: 'PUT', body: JSON.stringify(payload) });
+                toast('Slot updated.', 'success');
+            } else {
+                await api('/slots', { method: 'POST', body: JSON.stringify(payload) });
+                toast('Slot created.', 'success');
+            }
+
+            state.adminSlotConnectorId = connectorId;
+            state.adminSlotDate = payload.date;
+            closeModal('slotModal');
+            await loadAdminSlots();
+
+            if (state.selectedConnector && Number(state.selectedConnector.id) === Number(connectorId)) {
+                loadSlots(payload.date);
+            }
+        } catch(e) {
+            showError('slotError', e.message);
+        }
+    }
+
+    async function deleteSlot(id) {
+        if (!confirm('Delete this slot? Slots with confirmed bookings cannot be deleted.')) return;
+
+        try {
+            await api(`/slots/${id}`, { method: 'DELETE' });
+            toast('Slot deleted.', 'success');
+            await loadAdminSlots();
+        } catch(e) {
+            toast(e.message || 'Could not delete slot.', 'error');
+        }
+    }
+
+    async function showAdminBookingModal() {
+        clearModalErrors();
+        state.adminBookingSelectedSlotStart = null;
+        state.adminBookingSelectedSlotEnd = null;
+
+        const driverSelect = document.getElementById('adminBookingDriver');
+        const stationSelect = document.getElementById('adminBookingStation');
+        const connectorSelect = document.getElementById('adminBookingConnector');
+        const grid = document.getElementById('adminBookingSlotsGrid');
+        const selectedInfo = document.getElementById('adminBookingSelectedInfo');
+
+        driverSelect.innerHTML = '<option>Loading drivers...</option>';
+        stationSelect.innerHTML = '<option>Loading stations...</option>';
+        connectorSelect.innerHTML = '<option>Loading connectors...</option>';
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+        selectedInfo.textContent = 'Select an available slot above.';
+        document.getElementById('adminBookingDate').value = state.adminSlotDate || new Date().toISOString().split('T')[0];
+        document.getElementById('adminBookingModal').style.display = 'flex';
+
+        try {
+            const users = await api('/users');
+            const drivers = users.filter(u => u.role === 'DRIVER');
+
+            if (!drivers.length) {
+                showError('adminBookingError', 'No DRIVER users exist. Create a driver first.');
+                driverSelect.innerHTML = '';
+                return;
+            }
+
+            driverSelect.innerHTML = drivers.map(u =>
+                `<option value="${escapeAttr(u.username)}">${escapeHtml(u.username)} · ${escapeHtml(u.email || '')}</option>`
+            ).join('');
+
+            await refreshStationsData();
+
+            if (!state.stations.length) {
+                showError('adminBookingError', 'No stations exist. Create a station first.');
+                return;
+            }
+
+            stationSelect.innerHTML = state.stations.map(s =>
+                `<option value="${s.id}">${escapeHtml(s.name)} · ID ${s.id}</option>`
+            ).join('');
+
+            await loadAdminBookingConnectors();
+        } catch(e) {
+            showError('adminBookingError', e.message || 'Could not load admin booking form.');
+        }
+    }
+
+    async function loadAdminBookingConnectors() {
+        const stationId = Number(document.getElementById('adminBookingStation').value);
+        const connectorSelect = document.getElementById('adminBookingConnector');
+        const grid = document.getElementById('adminBookingSlotsGrid');
+
+        state.adminBookingSelectedSlotStart = null;
+        state.adminBookingSelectedSlotEnd = null;
+        document.getElementById('adminBookingSelectedInfo').textContent = 'Select an available slot above.';
+        connectorSelect.innerHTML = '<option>Loading connectors...</option>';
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+
+        try {
+            const connectors = await api(`/connectors/station/${stationId}`);
+
+            if (!connectors.length) {
+                connectorSelect.innerHTML = '';
+                grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>No connectors for this station.</p></div>';
+                return;
+            }
+
+            connectorSelect.innerHTML = connectors.map(c =>
+                `<option value="${c.id}">${escapeHtml(c.connectorType)} ${c.powerKw}kW · ID ${c.id}</option>`
+            ).join('');
+
+            await loadAdminBookingSlots();
+        } catch(e) {
+            connectorSelect.innerHTML = '';
+            grid.innerHTML = `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--danger);">${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    async function loadAdminBookingSlots() {
+        const connectorId = Number(document.getElementById('adminBookingConnector').value);
+        const date = document.getElementById('adminBookingDate').value;
+        const grid = document.getElementById('adminBookingSlotsGrid');
+        const selectedInfo = document.getElementById('adminBookingSelectedInfo');
+
+        state.adminBookingSelectedSlotStart = null;
+        state.adminBookingSelectedSlotEnd = null;
+        selectedInfo.textContent = 'Select an available slot above.';
+
+        if (!connectorId || !date) {
+            grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>Select connector and date.</p></div>';
+            return;
+        }
+
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+
+        try {
+            const slots = await api(`/slots/connector/${connectorId}/all?date=${date}`);
+
+            if (!slots.length) {
+                grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>No slots for this connector/date.</p></div>';
+                return;
+            }
+
+            grid.innerHTML = slots.map(s => {
+                const start = String(s.startTime || '').substring(0,5);
+                const end = String(s.endTime || '').substring(0,5);
+                const cls = s.available ? 'available' : 'booked';
+                return `<div class="slot-btn ${cls}" onclick="${s.available ? `pickAdminBookingSlot('${start}','${end}',this)` : ''}">${start}<br/>${end}</div>`;
+            }).join('');
+        } catch(e) {
+            grid.innerHTML = `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--danger);">${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    function pickAdminBookingSlot(start, end, el) {
+        document.querySelectorAll('#adminBookingSlotsGrid .slot-btn.available').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+        state.adminBookingSelectedSlotStart = start;
+        state.adminBookingSelectedSlotEnd = end;
+
+        document.getElementById('adminBookingSelectedInfo').innerHTML =
+            `Selected slot: <strong style="color:var(--accent)">${start} – ${end}</strong>`;
+    }
+
+    async function submitAdminBooking() {
+        const driverUsername = document.getElementById('adminBookingDriver').value;
+        const stationId = Number(document.getElementById('adminBookingStation').value);
+        const connectorId = Number(document.getElementById('adminBookingConnector').value);
+        const date = document.getElementById('adminBookingDate').value;
+        const startTime = state.adminBookingSelectedSlotStart;
+        const endTime = state.adminBookingSelectedSlotEnd;
+
+        if (!driverUsername || !stationId || !connectorId || !date || !startTime || !endTime) {
+            showError('adminBookingError', 'Driver, station, connector, date and available slot are required.');
+            return;
+        }
+
+        try {
+            await api('/bookings/admin', {
+                method: 'POST',
+                body: JSON.stringify({
+                    driverUsername,
+                    stationId,
+                    connectorId,
+                    date,
+                    startTime,
+                    endTime
+                })
+            });
+
+            closeModal('adminBookingModal');
+            toast(`Booking created for ${driverUsername}.`, 'success');
+            await loadAdminBookings();
+        } catch(e) {
+            showError('adminBookingError', e.message || 'Could not create admin booking.');
+        }
+    }
+
+    function renderBookingCard(b, adminMode) {
+        const stationName = b.station?.name || `Station #${b.station?.id || '?'}`;
+        const connectorType = b.connector?.connectorType || '';
+        const power = b.connector?.powerKw ? ` (${b.connector.powerKw} kW)` : '';
+        const start = b.startTime?.substring(0,5);
+        const end = b.endTime?.substring(0,5);
+        const statusClass = `status-${String(b.status || '').toLowerCase()}`;
+
+        return `
+    <div class="booking-card ${adminMode ? 'admin-booking-card' : ''}">
+      ${adminMode ? `<div class="booking-driver">DRIVER: ${b.driverUsername || 'unknown'}</div>` : ''}
+
+      <div class="booking-header">
+        <div class="booking-station">${stationName}</div>
+        <span class="status-badge ${statusClass}">${b.status}</span>
+      </div>
+
+      <div class="booking-detail">
+        🔌 ${connectorType}${power}<br/>
+        📅 ${b.date} &nbsp;·&nbsp; ⏱ ${start} – ${end}<br/>
+        ID: ${b.id}
+      </div>
+
+      ${b.status === 'CONFIRMED' ? `
+        <div class="booking-actions">
+          <button class="btn btn-ghost btn-sm" onclick="showModifyModal(${b.id})">
+            Modify
+          </button>
+          <button class="btn btn-danger btn-sm" onclick="cancelBookingById(${b.id})">
+            Cancel
+          </button>
+        </div>
+      ` : ''}
+    </div>
+  `;
+    }
+
+    async function showModifyModal(id) {
+        clearModalErrors();
+
+        state.modifyingBookingId = id;
+        state.modifyingBooking = null;
+        state.modifySelectedSlotStart = null;
+        state.modifySelectedSlotEnd = null;
+
+        const context = document.getElementById('modifyContext');
+        const driverGroup = document.getElementById('modifyDriverGroup');
+        const driverSelect = document.getElementById('modifyDriver');
+        const stationSelect = document.getElementById('modifyStation');
+        const connectorSelect = document.getElementById('modifyConnector');
+        const grid = document.getElementById('modifySlotsGrid');
+
+        context.innerHTML = 'Loading booking details...';
+        stationSelect.innerHTML = '<option>Loading stations...</option>';
+        connectorSelect.innerHTML = '<option>Loading connectors...</option>';
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+        document.getElementById('modifySelectedInfo').textContent = 'Select an available slot above.';
+        document.getElementById('modifyModal').style.display = 'flex';
+
+        try {
+            const booking = await api(`/bookings/${id}`);
+            state.modifyingBooking = booking;
+
+            context.innerHTML = `
+                Booking ID: <strong>${booking.id}</strong><br/>
+                Current Driver: <strong>${escapeHtml(booking.driverUsername || 'unknown')}</strong><br/>
+                Current Station: <strong>${escapeHtml(booking.station?.name || '')}</strong><br/>
+                Current Connector: <strong>${escapeHtml(booking.connector?.connectorType || '')}</strong><br/>
+                Current Slot: <strong>${escapeHtml(booking.date)} ${escapeHtml(booking.startTime?.substring(0,5))}–${escapeHtml(booking.endTime?.substring(0,5))}</strong>
+            `;
+
+            if (state.user?.role === 'ADMIN') {
+                driverGroup.style.display = 'block';
+                const users = await api('/users');
+                const drivers = users.filter(u => u.role === 'DRIVER');
+                driverSelect.innerHTML = drivers.map(u =>
+                    `<option value="${escapeAttr(u.username)}" ${u.username === booking.driverUsername ? 'selected' : ''}>${escapeHtml(u.username)} · ID ${u.id}</option>`
+                ).join('');
+            } else {
+                driverGroup.style.display = 'none';
+                driverSelect.innerHTML = '';
+            }
+
+            const stations = await api('/stations');
+            stationSelect.innerHTML = stations.map(s =>
+                `<option value="${s.id}" ${Number(s.id) === Number(booking.station?.id) ? 'selected' : ''}>${escapeHtml(s.name)} · ID ${s.id}</option>`
+            ).join('');
+
+            document.getElementById('modifyDate').value = booking.date;
+            await loadModifyConnectors();
+        } catch(e) {
+            showError('modifyError', e.message || 'Could not load booking details.');
+            context.innerHTML = '';
+            stationSelect.innerHTML = '';
+            connectorSelect.innerHTML = '';
+            grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>Could not load booking details.</p></div>';
+        }
+    }
+
+    async function loadModifyConnectors() {
+        const booking = state.modifyingBooking;
+        const stationId = Number(document.getElementById('modifyStation').value);
+        const connectorSelect = document.getElementById('modifyConnector');
+        const grid = document.getElementById('modifySlotsGrid');
+
+        state.modifySelectedSlotStart = null;
+        state.modifySelectedSlotEnd = null;
+        document.getElementById('modifySelectedInfo').textContent = 'Select an available slot above.';
+        connectorSelect.innerHTML = '<option>Loading connectors...</option>';
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+
+        if (!stationId) {
+            connectorSelect.innerHTML = '';
+            grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>Select a station.</p></div>';
+            return;
+        }
+
+        try {
+            const connectors = await api(`/connectors/station/${stationId}`);
+
+            if (!connectors.length) {
+                connectorSelect.innerHTML = '';
+                grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>No connectors for this station.</p></div>';
+                return;
+            }
+
+            const currentConnectorId = booking?.connector?.id;
+            connectorSelect.innerHTML = connectors.map(c =>
+                `<option value="${c.id}" ${Number(c.id) === Number(currentConnectorId) ? 'selected' : ''}>${escapeHtml(c.connectorType)} ${c.powerKw}kW · ID ${c.id}</option>`
+            ).join('');
+
+            await loadModifySlots();
+        } catch(e) {
+            connectorSelect.innerHTML = '';
+            grid.innerHTML = `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--danger);">${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    async function loadModifySlots() {
+        const booking = state.modifyingBooking;
+        const connectorId = Number(document.getElementById('modifyConnector').value);
+        const date = document.getElementById('modifyDate').value;
+        const grid = document.getElementById('modifySlotsGrid');
+        const selectedInfo = document.getElementById('modifySelectedInfo');
+
+        state.modifySelectedSlotStart = null;
+        state.modifySelectedSlotEnd = null;
+        selectedInfo.textContent = 'Select an available slot above.';
+
+        if (!connectorId || !date) {
+            grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>Select connector and date.</p></div>';
+            return;
+        }
+
+        grid.innerHTML = '<div class="loading">Loading slots...</div>';
+
+        try {
+            const slots = await api(`/slots/connector/${connectorId}/all?date=${date}`);
+
+            if (!slots.length) {
+                grid.innerHTML = '<div class="empty" style="grid-column:1/-1;"><p>No slots for this connector/date.</p></div>';
+                return;
+            }
+
+            grid.innerHTML = slots.map(s => {
+                const start = String(s.startTime || '').substring(0,5);
+                const end = String(s.endTime || '').substring(0,5);
+                const isCurrent = Number(s.id) === Number(booking?.slotId);
+                const canPick = Boolean(s.available) || isCurrent;
+                const cls = canPick ? `available ${isCurrent ? 'selected' : ''}` : 'booked';
+                const label = isCurrent ? `${start}<br/>${end}<br/><span style="font-size:0.65rem;">Current</span>` : `${start}<br/>${end}`;
+                return `<div class="slot-btn ${cls}" onclick="${canPick ? `pickModifySlot('${start}','${end}',this)` : ''}">${label}</div>`;
+            }).join('');
+
+            const currentStillVisible = slots.find(s => Number(s.id) === Number(booking?.slotId));
+            if (currentStillVisible) {
+                state.modifySelectedSlotStart = String(currentStillVisible.startTime || '').substring(0,5);
+                state.modifySelectedSlotEnd = String(currentStillVisible.endTime || '').substring(0,5);
+                selectedInfo.innerHTML =
+                    `Selected slot: <strong style="color:var(--accent)">${state.modifySelectedSlotStart} – ${state.modifySelectedSlotEnd}</strong>`;
+            }
+        } catch(e) {
+            grid.innerHTML = `<div style="grid-column:1/-1;font-size:0.8rem;color:var(--danger);">${escapeHtml(e.message)}</div>`;
+        }
+    }
+
+    function pickModifySlot(start, end, el) {
+        document.querySelectorAll('#modifySlotsGrid .slot-btn.available').forEach(b => b.classList.remove('selected'));
+        el.classList.add('selected');
+        state.modifySelectedSlotStart = start;
+        state.modifySelectedSlotEnd = end;
+
+        document.getElementById('modifySelectedInfo').innerHTML =
+            `Selected slot: <strong style="color:var(--accent)">${start} – ${end}</strong>`;
+    }
+
+    async function submitModify() {
+        const booking = state.modifyingBooking;
+        const date = document.getElementById('modifyDate').value;
+        const stationId = Number(document.getElementById('modifyStation').value);
+        const connectorId = Number(document.getElementById('modifyConnector').value);
+        const startTime = state.modifySelectedSlotStart;
+        const endTime = state.modifySelectedSlotEnd;
+        const driverUsername = state.user?.role === 'ADMIN'
+            ? document.getElementById('modifyDriver').value
+            : undefined;
+
+        if (!booking || !stationId || !connectorId || !date || !startTime || !endTime) {
+            showError('modifyError', 'Station, connector, date and available slot are required.');
+            return;
+        }
+
+        try {
+            await api(`/bookings/${state.modifyingBookingId}`, {
+                method: 'PUT',
+                body: JSON.stringify({
+                    driverUsername,
+                    stationId,
+                    connectorId,
+                    date,
+                    startTime,
+                    endTime
+                })
+            });
+
+            closeModal('modifyModal');
+            toast('Booking updated.', 'success');
+
+            if (state.currentTab === 'admin') {
+                loadAdminBookings();
+            } else {
+                loadMyBookings();
+            }
+
+            if (state.selectedConnector) {
+                loadSlots(state.selectedDate);
+            }
+        } catch(e) {
+            showError('modifyError', e.message);
+        }
+    }
+
+    async function cancelBookingById(id) {
+        if (!confirm('Cancel this booking?')) return;
+
+        try {
+            await api(`/bookings/${id}`, { method: 'DELETE' });
+            toast('Booking cancelled.', 'success');
+
+            if (state.currentTab === 'admin') {
+                loadAdminBookings();
+            } else {
+                loadMyBookings();
+            }
+
+            if (state.selectedConnector) {
+                loadSlots(state.selectedDate);
+            }
+        } catch(e) {
+            toast(e.message, 'error');
+        }
+    }
+
+    function switchTab(tab, el) {
+        if (tab === 'admin' && state.user?.role !== 'ADMIN') {
+            toast('Admin access required', 'error');
+            return;
+        }
+
+        state.currentTab = tab;
+
+        document.querySelectorAll('.tab').forEach(t => t.classList.remove('active'));
+        if (el) el.classList.add('active');
+
+        if (tab === 'stations') {
+            renderStations(state.filteredStations);
+        } else if (tab === 'bookings') {
+            loadMyBookings();
+        } else if (tab === 'admin') {
+            loadAdminBookings();
+        }
+    }
+
+    function removeDetailPanel() {
+        const existing = document.getElementById('detailPanel');
+        if (existing) existing.remove();
+    }
+
+    function connectorClass(type) {
+        return String(type || '')
+            .toLowerCase()
+            .replace(/\s/g, '')
+            .replace('ccs2', 'ccs2')
+            .replace('chademo', 'chademo')
+            .replace('type2', 'type2');
+    }
+
+    function escapeHtml(value) {
+        return String(value || '')
+            .replace(/&/g, '&amp;')
+            .replace(/</g, '&lt;')
+            .replace(/>/g, '&gt;')
+            .replace(/"/g, '&quot;')
+            .replace(/'/g, '&#039;');
+    }
+
+    function escapeAttr(value) {
+        return String(value || '')
+            .replace(/\\/g, '\\\\')
+            .replace(/'/g, "\\'")
+            .replace(/"/g, '&quot;')
+            .replace(/\n/g, ' ');
+    }
+
+    function showError(id, msg) {
+        const el = document.getElementById(id);
+        if (el) {
+            el.textContent = msg;
+            el.style.display = 'block';
+        }
+    }
+
+    function toast(msg, type = 'success') {
+        const el = document.createElement('div');
+        el.className = `toast ${type}`;
+        el.innerHTML = `<span>${type === 'success' ? '✅' : '❌'}</span> ${msg}`;
+        document.body.appendChild(el);
+        setTimeout(() => el.remove(), 3500);
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+        initMap();
+        updateAuthUI();
+        loadStations();
+    });
+</script>
+</body>
+</html>

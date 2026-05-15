@@ -1,0 +1,11 @@
+# Railway build/start commands.
+# Runtime variables are set in the Railway dashboard.
+
+[build]
+builder = "nixpacks"
+buildCommand = "cd backend && mvn clean package -DskipTests"
+
+[deploy]
+startCommand = "java -jar backend/target/ev-charging-backend-1.0.0.jar --server.port=$PORT"
+restartPolicyType = "on_failure"
+restartPolicyMaxRetries = 3
